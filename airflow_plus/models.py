@@ -6,6 +6,7 @@ from typing import List, Tuple, Union, Optional, Dict, Sequence
 import pendulum
 from airflow import AirflowException, settings
 from airflow.hooks.base_hook import BaseHook
+from airflow.models import Connection
 from airflow.operators.python_operator import PythonOperator
 from pendulum import Pendulum
 from pydantic import BaseModel
@@ -34,7 +35,7 @@ class Operator(Protocol):
     def _resolve_hooks(self):
         for k, v in self.__annotations__.items():
             if issubclass(v, BaseHook) and isinstance(getattr(self, k), str):
-                setattr(self, k, Connection(getattr(self, k)).hook)
+                setattr(self, k, ConnectionHelper(getattr(self, k)).hook)
 
     @property
     def airflow_operator(self) -> PythonOperator:
@@ -216,11 +217,11 @@ class DAG:
 
 
 @dataclass
-class Connection:
+class ConnectionHelper:
     conn_id: str
 
     @staticmethod
-    def custom_hook_classes() -> List[BaseHook]:
+    def custom_hook_classes() -> List[Union['CustomBaseHook', 'BaseHook']]:
         import inspect
         import importlib.util
 
@@ -241,13 +242,13 @@ class Connection:
             ]
         return hook_classes
 
-    def get_custom_hook(self):
+    def get_custom_hook(self) -> Union[BaseHook, 'CustomBaseHook']:
         conn_type = BaseHook.get_connection(self.conn_id).conn_type
 
         for cls in self.custom_hook_classes():
             hook_name = getattr(cls, 'conn_type', None)
             if hook_name == conn_type:
-                return cls(conn_id=self.conn_id)
+                return cls.from_conn_id(conn_id=self.conn_id)
 
         raise ValueError(f'No hook found with connection type {conn_type}')
 
@@ -266,5 +267,10 @@ class CustomBaseHook(Protocol):
     conn_type: str
     conn_type_long: str
 
-    def __init__(self, conn_id: str):
+    def __init__(self, conn_params: Connection):
         ...
+
+    @staticmethod
+    def from_conn_id(conn_id: str) -> 'CustomBaseHook':
+        conn_params = BaseHook.get_connection(conn_id)
+        return CustomBaseHook(conn_params)

@@ -1,4 +1,5 @@
 from airflow.hooks.base_hook import BaseHook
+from airflow.models import Connection
 
 from airflow_plus.models import CustomBaseHook
 
@@ -8,8 +9,8 @@ class UselessHook(BaseHook, CustomBaseHook):
     conn_type_long = 'Useless Test Hook'
 
     # noinspection PyMissingConstructor
-    def __init__(self, conn_id: str):
-        self.conn_id = conn_id
+    def __init__(self, conn_params: Connection):
+        self.conn_id = conn_params.conn_id
 
     def do_nothing(self):
         print(f'{self.conn_id} is doing nothing')
@@ -31,14 +32,17 @@ class EvenMoreUselessHook(CustomBaseHook):
     conn_type = 'more_useless'
     conn_type_long = 'Even More Useless'
 
-    def __init__(self, conn_id: str):
-        self.conn_id = conn_id
+    def __init__(self, conn_params: Connection):
+        self.conn_id = conn_params.conn_id
 
 
 class UselessHookImplicitProtocol:
     conn_type = 'useless_implicit'
     conn_type_long = 'Useless Implicit'
 
-    def __init__(self, conn_id: str):
-        self.conn_id = conn_id
+    def __init__(self, conn_params: Connection):
+        self.conn_id = conn_params.conn_id
 
+    @staticmethod
+    def from_conn_id(conn_id: str):
+        return UselessHookImplicitProtocol(BaseHook.get_connection(conn_id))

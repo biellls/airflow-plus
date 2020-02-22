@@ -2,7 +2,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import List, Union
 
-from airflow.hooks.base_hook import BaseHook
+from airflow.models import Connection
 
 from airflow_plus.models import CustomBaseHook
 
@@ -22,11 +22,10 @@ class S3FSHook(FileSystemHook):
     conn_type = 's3_filesystem_hook'
     conn_type_long = 'S3 FileSystem'
 
-    def __init__(self, conn_id: str):
+    def __init__(self, conn_params: Connection):
         from airflow.hooks.S3_hook import S3Hook
-        self.conn_id = conn_id
-        self.af_s3_hook = S3Hook(aws_conn_id=conn_id)
-        conn_params = BaseHook.get_connection(conn_id)
+        self.conn_id = conn_params.conn_id
+        self.af_s3_hook = S3Hook(aws_conn_id=self.conn_id)
         self.bucket = conn_params.extra_dejson['bucket']
 
     def list_path(self, path: str, recursive: bool = False) -> List[str]:
@@ -52,9 +51,8 @@ class LocalFSHook(FileSystemHook):
     conn_type = 'local_filesystem_hook'
     conn_type_long = 'Local Filesystem'
 
-    def __init__(self, conn_id: str):
-        self.conn_id = conn_id
-        conn_params = BaseHook.get_connection(conn_id)
+    def __init__(self, conn_params: Connection):
+        self.conn_id = conn_params.conn_id
         self.base_path = Path(conn_params.extra_dejson('base_path', '/'))
 
     def list_path(self, path: str, recursive: bool = False) -> List[str]:
@@ -78,11 +76,10 @@ class FTPFSHook(FileSystemHook):
     conn_type = 'ftp_filesystem'
     conn_type_long = 'FTP FileSystem'
 
-    def __init__(self, conn_id: str):
+    def __init__(self, conn_params: Connection):
         from airflow.contrib.hooks.ftp_hook import FTPHook
-        self.conn_id = conn_id
-        self.af_ftp_hook = FTPHook(ftp_conn_id=conn_id)
-        conn_params = BaseHook.get_connection(conn_id)
+        self.conn_id = conn_params.conn_id
+        self.af_ftp_hook = FTPHook(ftp_conn_id=self.conn_id)
         self.base_path = Path(conn_params.extra_dejson('base_path', '/'))
 
     def list_path(self, path: str, recursive: bool = False) -> List[str]:
