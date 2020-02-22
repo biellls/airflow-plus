@@ -1,3 +1,4 @@
+sqlparse
 click
 apache-airflow[devel]>=1.10
 pendulum

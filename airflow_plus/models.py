@@ -226,20 +226,21 @@ class ConnectionHelper:
         import importlib.util
 
         hook_classes = []
-        for python_file in Path(settings.PLUGINS_FOLDER).rglob('*.py'):
-            relative_path = python_file.relative_to(Path(settings.PLUGINS_FOLDER))
-            parts = list(relative_path.parts)
-            parts[-1] = parts[-1].replace('.py', '')
-            module_name = '.'.join(parts)
-            spec = importlib.util.spec_from_file_location(name=module_name, location=str(python_file))
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            classes = inspect.getmembers(mod, inspect.isclass)
-            hook_classes += [
-                cls
-                for cls_name, cls in classes
-                if (BaseHook in cls.__bases__) or isinstance(cls, CustomBaseHook)
-            ]
+        for plugin_path in [settings.PLUGINS_FOLDER, str(Path(__file__).parent/'contrib/hooks')]:
+            for python_file in Path(plugin_path).rglob('*.py'):
+                relative_path = python_file.relative_to(Path(plugin_path))
+                parts = list(relative_path.parts)
+                parts[-1] = parts[-1].replace('.py', '')
+                module_name = '.'.join(parts)
+                spec = importlib.util.spec_from_file_location(name=module_name, location=str(python_file))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                classes = inspect.getmembers(mod, inspect.isclass)
+                hook_classes += [
+                    cls
+                    for cls_name, cls in classes
+                    if (BaseHook in cls.__bases__) or isinstance(cls, CustomBaseHook)
+                ]
         return hook_classes
 
     def get_custom_hook(self) -> Union[BaseHook, 'CustomBaseHook']:
