@@ -31,6 +31,8 @@ op = HelloWorldOperator(task_id='test_op')
 op.test()
 ```
 
+![Debugging gif](airflow_plus/static/debugging.gif)
+
 ## Easy Custom Hooks
 
 ```python
