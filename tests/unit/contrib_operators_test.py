@@ -55,4 +55,9 @@ def test_database_to_filesystem_operator(tmp_sqlite, tmp_path):
             path='dumps/{{ ds }}/stocks.csv'
         )
         op.test(execution_date=datetime(2020, 2, 18), airflow_db=af_db)
-        print((tmp_path / 'dumps/2020-02-18/stocks.csv').read_text())
+        assert (tmp_path / 'dumps/2020-02-18/stocks.csv').read_text().strip() == """\
+date,trans,symbol,qty,price
+2006-01-05,BUY,RHAR,11.0,35.14
+2006-03-28,BUY,IBM,1000.0,45.0
+2006-04-05,BUY,MSFT,1000.0,72.0
+2006-04-06,SELL,IBM,500.0,53.0"""
