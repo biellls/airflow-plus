@@ -8,9 +8,10 @@ Facade over Airflow that provides a simple typed interface.
 - Greatly improved unit testing and debugging
 
 ## Simple typed operators
-You can define operators in Airflow Plus by implementing the Operator protocol. Minimalist code by making them into a dataclass.
+You can define operators in Airflow Plus by implementing the Operator protocol. Supports minimalist code by making them into a dataclass.
 
 ```python
+@dataclass
 class HelloWorldOperator(Operator):
     task_id: str
     msg: str = 'Hello World!'
@@ -63,7 +64,7 @@ afp webserver
 
 ![Custom connection in UI](airflow_plus/static/custom_conn_ui.png)
 
-Magic!!!
+Magic!
 
 ## Resolving hooks
 
@@ -175,3 +176,25 @@ def tmp_sqlite(tmp_path):
     yield sqlite_db
 
 ```
+
+## Improved Sub DAGs
+Sub DAGs in Airflow are bug ridden to the point where they are avoided most of the time. In Airflow Plus we define a subdag as a concatentation of tasks, that gets defined independent of a DAG. This enables us to create subdags once that can be reused across DAGs.
+
+```python
+from airflow_plus.models import DAG
+
+op1 = MyOperator(task_id='op1')
+op2 = MyOperator(task_id='op2')
+op3 = MyOperator(task_id='op3')
+
+my_sub_dag = op1 >> op2
+
+with DAG(dag_id='test_dag', schedule_interval='@once', start_date=datetime.min) as dag:
+    dag >> my_sub_dag
+
+with DAG(dag_id='other_test_dag', schedule_interval='@once', start_date=datetime.min) as dag:
+    dag >> (my_sub_dag >> op3)
+```
+
+We defined the tasks outside the DAGs and reused them. Notice how we also defined two DAGs in one file. While this is not possible in regular Airflow (without messing with globals), it's easy with Airflow Plus.
+
