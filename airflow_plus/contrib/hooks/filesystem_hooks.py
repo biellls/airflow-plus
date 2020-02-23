@@ -19,7 +19,7 @@ class FileSystemHook(CustomBaseHook):
 
 
 class S3FSHook(FileSystemHook):
-    conn_type = 's3_filesystem_hook'
+    conn_type = 's3_filesystem'
     conn_type_long = 'S3 FileSystem'
 
     def __init__(self, conn_params: Connection):
@@ -48,12 +48,12 @@ class S3FSHook(FileSystemHook):
 
 
 class LocalFSHook(FileSystemHook):
-    conn_type = 'local_filesystem_hook'
+    conn_type = 'local_filesystem'
     conn_type_long = 'Local Filesystem'
 
     def __init__(self, conn_params: Connection):
         self.conn_id = conn_params.conn_id
-        self.base_path = Path(conn_params.extra_dejson('base_path', '/'))
+        self.base_path = Path(conn_params.extra_dejson.get('base_path', '/'))
 
     def list_path(self, path: str, recursive: bool = False) -> List[str]:
         if recursive:
@@ -66,7 +66,9 @@ class LocalFSHook(FileSystemHook):
             data = data.encode()
         elif isinstance(data, BytesIO):
             data = data.getvalue()
-        (self.base_path / path).write_bytes(data)
+        out_path = self.base_path / path
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes(data)
 
     def read_data(self, path: str) -> BytesIO:
         return BytesIO((self.base_path / path).read_bytes())

@@ -19,7 +19,7 @@ class FileFormat(str, Enum):
             separator = ',' if FileFormat.CSV else ';' if FileFormat.CSV_SEMICOLON else '/t'
             data = df.to_csv(index=False, sep=separator)
         elif self == FileFormat.JSON:
-            data = df.to_json()
+            data = df.to_json(index=False, orient='records')
         else:
             assert False, f'Format case is not exhaustive. Missing "{self}"'
         return data

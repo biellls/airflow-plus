@@ -2,7 +2,7 @@ import contextlib
 import json
 import os
 import tempfile
-from typing import Optional, Union, ContextManager
+from typing import Optional, Union, ContextManager, List
 
 from airflow import models
 from airflow import settings
@@ -67,6 +67,11 @@ class AirflowDb:
         session.add(new_var)
         session.commit()
         session.close()
+
+    def list_connections(self) -> List[str]:
+        assert repr(settings.engine.url) == self.sql_alchemy_conn
+        session = settings.Session()
+        return [x.conn_id for x in session.query(Connection)]
 
 
 @contextlib.contextmanager

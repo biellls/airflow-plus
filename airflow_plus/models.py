@@ -34,7 +34,7 @@ class Operator(Protocol):
 
     def _resolve_hooks(self):
         for k, v in self.__annotations__.items():
-            if issubclass(v, BaseHook) and isinstance(getattr(self, k), str):
+            if (issubclass(v, BaseHook) or CustomBaseHook in v.__bases__) and isinstance(getattr(self, k), str):
                 setattr(self, k, ConnectionHelper(getattr(self, k)).hook)
 
     @property
@@ -271,7 +271,7 @@ class CustomBaseHook(Protocol):
     def __init__(self, conn_params: Connection):
         ...
 
-    @staticmethod
-    def from_conn_id(conn_id: str) -> 'CustomBaseHook':
+    @classmethod
+    def from_conn_id(cls, conn_id: str) -> 'CustomBaseHook':
         conn_params = BaseHook.get_connection(conn_id)
-        return CustomBaseHook(conn_params)
+        return cls(conn_params)
