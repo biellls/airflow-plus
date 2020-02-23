@@ -27,6 +27,7 @@ class DAGContext(BaseModel):
 class Operator(Protocol):
     template_fields: Sequence[str] = ()
     template_ext: Sequence[str] = ()
+    params: dict = None
     task_id: str
 
     def execute(self, dag_context: DAGContext):
@@ -58,6 +59,7 @@ class Operator(Protocol):
             python_callable=_execute_func,
             provide_context=True,
             op_kwargs={x: getattr(self, x) for x in self.template_fields},
+            params=self.params,
         )
         # noinspection PyAttributeOutsideInit
         self._operator = python_operator
@@ -139,12 +141,14 @@ class SubDAG:
         all_y = {y.task_id for x, y in self.edges}
         return [self.operators[task_id] for task_id in all_y.difference(all_x)]
 
-    def __rshift__(self, other: Union[Operator, 'SubDAG']) -> 'SubDAG':
+    def __rshift__(self, other: Union[Operator, 'SubDAG', 'Component']) -> 'SubDAG':
         sub_dag = self.copy()
         if isinstance(other, Operator):
             for sink in self.sinks:
                 sub_dag._add_edge(sink, other)
         else:
+            if isinstance(other, Component):
+                other = other.sub_dag
             for sink in self.sinks:
                 for source in other.sources:
                     sub_dag._add_edge(sink, source)
@@ -162,11 +166,13 @@ class OperatorInSubDAG:
     operator: Operator
 
     # noinspection PyProtectedMember
-    def __rshift__(self, other: Union[Operator, 'SubDAG']) -> 'SubDAG':
+    def __rshift__(self, other: Union[Operator, 'SubDAG', 'Component']) -> 'SubDAG':
         sub_dag = self.sub_dag.copy()
         if isinstance(other, Operator):
             sub_dag._add_edge(self.operator, other)
         else:
+            if isinstance(other, Component):
+                other = other.sub_dag
             for source in other.sources:
                 sub_dag._add_edge(self.operator, source)
             sub_dag.edges += other.edges
@@ -183,7 +189,7 @@ class DAG:
         self.start_date = start_date
         self.sub_dag = SubDAG()
 
-    def __rshift__(self, other: 'SubDAG'):
+    def __rshift__(self, other: Union['SubDAG', 'Component']):
         self.sub_dag = self.sub_dag >> other
         return self
 
@@ -275,3 +281,13 @@ class CustomBaseHook(Protocol):
     def from_conn_id(cls, conn_id: str) -> 'CustomBaseHook':
         conn_params = BaseHook.get_connection(conn_id)
         return cls(conn_params)
+
+
+@runtime_checkable
+class Component(Protocol):
+    sub_dag: SubDAG
+
+    def __rshift__(self, other: Union[Operator, SubDAG, 'Component']) -> SubDAG:
+        if isinstance(other, Component):
+            other = other.sub_dag
+        return self.sub_dag >> other

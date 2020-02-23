@@ -1,4 +1,6 @@
+import shutil
 from argparse import Namespace
+from pathlib import Path
 
 import airflow
 import click
@@ -31,7 +33,20 @@ class Args(Namespace):
         return self.args.get(item)
 
 
+def replace_logos():
+    airflow_static_path = Path(airflow.__file__).parent/'www_rbac/static'
+    airflow_plus_static_path = Path(__file__).parent/'static'
+    for logo_png in (airflow_plus_static_path/'logos').rglob('*.png'):
+        af_logo_png = airflow_static_path / str(logo_png.name)
+        assert af_logo_png.exists()
+        af_logo_png_backup = af_logo_png.with_suffix('.png.old')
+        if not af_logo_png_backup.exists():
+            af_logo_png.rename(af_logo_png_backup)
+            shutil.copy(str(logo_png), str(af_logo_png))
+
+
 def run_modded_webserver(hostname: str, port: int, debug: bool, mock_db: bool):
+    # replace_logos()
     for cls in ConnectionHelper.custom_hook_classes():
         conn_type = getattr(cls, 'conn_type', None)
         if conn_type:

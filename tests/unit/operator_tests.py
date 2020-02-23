@@ -16,6 +16,7 @@ class MyOperator(Operator):
 
     task_id: str
     sql: str
+    params: dict = None
 
     def execute(self, dag_context: DAGContext):
         print(dag_context.ds)
@@ -36,13 +37,20 @@ def test_make_airflow_operator(capsys):
 
 def test_make_airflow_operator_with_render(capsys):
     op = MyOperator(task_id='test_op', sql='SELECT "{{ ds }}"')
-    with mock_airflow_db():
-        with DAG(dag_id='test_dag', schedule_interval='@once', start_date=datetime.min) as dag:
-            airflow_op = op.airflow_operator
-            dag >> airflow_op
-            TaskInstance(airflow_op, execution_date=pendulum.datetime(2020, 2, 18)).run(test_mode=True)
-            captured = capsys.readouterr()
-            assert 'SELECT "2020-02-18"' in captured.out
+    op.test(pendulum.datetime(2020, 2, 18))
+    captured = capsys.readouterr()
+    assert 'SELECT "2020-02-18"' in captured.out
+
+
+def test_make_airflow_operator_with_render_params(capsys):
+    op = MyOperator(
+        task_id='test_op',
+        sql='SELECT "{{ ds }}" FROM {{ params.table }}',
+        params={'table': 'foo'},
+    )
+    op.test(pendulum.datetime(2020, 2, 18))
+    captured = capsys.readouterr()
+    assert 'SELECT "2020-02-18" FROM foo' in captured.out
 
 
 def test_cache_airflow_operator():
