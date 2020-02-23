@@ -1,5 +1,5 @@
 # Airflow Plus
-![Airflow Plus](airflow_plus/static/logos/pin_large.png)
+![Airflow Plus](airflow_plus/static/logos/pin_large.png =250x)
 
 Facade over Airflow that provides a simple typed interface.
 
