@@ -1,3 +1,7 @@
+import textwrap
+from enum import Enum
+
+import jinja2
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -27,8 +31,8 @@ class DAGContext(BaseModel):
 class Operator(Protocol):
     template_fields: Sequence[str] = ()
     template_ext: Sequence[str] = ()
-    params: dict = None
     task_id: str
+    operator_config: 'OperatorConfig'
 
     def execute(self, dag_context: DAGContext):
         ...
@@ -59,7 +63,7 @@ class Operator(Protocol):
             python_callable=_execute_func,
             provide_context=True,
             op_kwargs={x: getattr(self, x) for x in self.template_fields},
-            params=self.params,
+            **self.operator_config.make_kwargs()
         )
         # noinspection PyAttributeOutsideInit
         self._operator = python_operator
@@ -101,6 +105,33 @@ class Operator(Protocol):
                     ignore_task_deps=True,
                     ignore_ti_state=True,
                 )
+
+
+class TriggerRule(Enum):
+    ALL_SUCCESS = 'all_success'
+    ALL_FAILED = 'all_failed'
+    ALL_DONE = 'all_done'
+    ONE_SUCCESS = 'one_success'
+    ONE_FAILED = 'one_failed'
+    NONE_FAILED = 'none_failed'
+    NONE_SKIPPED = 'none_skipped'
+    DUMMY = 'dummy'
+
+
+@dataclass(eq=True, frozen=True)
+class OperatorConfig:
+    owner: str = None
+    params: dict = None
+    retries: int = None
+    depends_on_past: bool = None
+    trigger_rule: TriggerRule = None
+
+    def make_kwargs(self) -> dict:
+        return {
+            k: getattr(self, k).value if isinstance(getattr(self, k), Enum) else getattr(self, k)
+            for k, v in self.__annotations__.items()
+            if getattr(self, k) is not None
+        }
 
 
 SubDAGEdges = List[Tuple[
@@ -291,3 +322,25 @@ class Component(Protocol):
         if isinstance(other, Component):
             other = other.sub_dag
         return self.sub_dag >> other
+
+
+@runtime_checkable
+class Templated(Protocol):
+    template: str
+
+    @property
+    def context(self):
+        return {
+            k: getattr(self, k).rendered if isinstance(getattr(self, k), Templated) else getattr(self, k)
+            for k, v in self.__annotations__.items() if k != 'template'
+        }
+
+    def render(self) -> str:
+        return jinja2.Template(textwrap.dedent(self.template).strip()).render(self.context)
+
+    @property
+    def rendered(self) -> str:
+        return self.render()
+
+    def __str__(self) -> str:
+        return self.rendered
