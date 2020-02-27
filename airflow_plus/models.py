@@ -22,10 +22,39 @@ from airflow_plus.airflow_testing import AirflowDb
 
 class DAGContext(BaseModel):
     execution_date: Pendulum
+    next_execution_date: Optional[Pendulum] = None
     ds: str
     tomorrow_ds: str
     yesterday_ds: str
     ts: str
+    next_ds: str = None
+
+
+class TriggerRule(Enum):
+    ALL_SUCCESS = 'all_success'
+    ALL_FAILED = 'all_failed'
+    ALL_DONE = 'all_done'
+    ONE_SUCCESS = 'one_success'
+    ONE_FAILED = 'one_failed'
+    NONE_FAILED = 'none_failed'
+    NONE_SKIPPED = 'none_skipped'
+    DUMMY = 'dummy'
+
+
+@dataclass(eq=True, frozen=True)
+class OperatorConfig:
+    owner: str = None
+    params: dict = None
+    retries: int = None
+    depends_on_past: bool = None
+    trigger_rule: TriggerRule = None
+
+    def make_kwargs(self) -> dict:
+        return {
+            k: getattr(self, k).value if isinstance(getattr(self, k), Enum) else getattr(self, k)
+            for k, v in self.__annotations__.items()
+            if getattr(self, k) is not None
+        }
 
 
 @runtime_checkable
@@ -33,7 +62,7 @@ class Operator(Protocol):
     template_fields: Sequence[str] = ()
     template_ext: Sequence[str] = ()
     task_id: str
-    operator_config: 'OperatorConfig'
+    operator_config: 'OperatorConfig' = OperatorConfig()
 
     def execute(self, dag_context: DAGContext):
         ...
@@ -106,33 +135,6 @@ class Operator(Protocol):
                     ignore_task_deps=True,
                     ignore_ti_state=True,
                 )
-
-
-class TriggerRule(Enum):
-    ALL_SUCCESS = 'all_success'
-    ALL_FAILED = 'all_failed'
-    ALL_DONE = 'all_done'
-    ONE_SUCCESS = 'one_success'
-    ONE_FAILED = 'one_failed'
-    NONE_FAILED = 'none_failed'
-    NONE_SKIPPED = 'none_skipped'
-    DUMMY = 'dummy'
-
-
-@dataclass(eq=True, frozen=True)
-class OperatorConfig:
-    owner: str = None
-    params: dict = None
-    retries: int = None
-    depends_on_past: bool = None
-    trigger_rule: TriggerRule = None
-
-    def make_kwargs(self) -> dict:
-        return {
-            k: getattr(self, k).value if isinstance(getattr(self, k), Enum) else getattr(self, k)
-            for k, v in self.__annotations__.items()
-            if getattr(self, k) is not None
-        }
 
 
 SubDAGEdges = List[Tuple[
