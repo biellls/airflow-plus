@@ -1,21 +1,29 @@
 from enum import Enum
-from typing import Tuple, Union
+from typing import Tuple, Union, List, Generic, TypeVar
 
 from dataclasses import dataclass
 
+from airflow_plus.contrib.metadata import FieldMetadata
 from airflow_plus.models import Templated
 
 
 @dataclass
 class CopyTemplate(Templated):
     template = """
-    COPY INTO {{ table }}
-    SELECT $1 FROM {{ s3_path }}
+    COPY INTO {{ table }} from (
+        SELECT $1 FROM {{ s3_path }}
+        {% for field in fields %}
+            ${{ loop.index }} as {{ field.name }}{{ ',' if not loop.last else '' }}
+        {% endfor %}
+        FROM {{ s3_path }}
+    )
     FILE_FORMAT = {{ file_format }}
-    {% if copy_options is not none %}{{ copy_options }}{% endif %}
+    {% when copy_options %}
+    ;
     """
     table: str
     s3_path: str
+    fields: List[FieldMetadata]
     file_format: Union['NamedFileFormatTemplate', 'CustomFileFormatTemplate']
     copy_options: 'CopyOptionsTemplate' = None
 
@@ -48,18 +56,28 @@ class FileFormatCompression(Enum):
     NONE = 'NONE'
 
 
+T = TypeVar('T')
+
+
+class Quoted(Generic[T]):
+    def __init__(self, x: T):
+        self.x = x
+
+    def __str__(self) -> str:
+        return f"'{self.x}'"
+
+
 @dataclass
 class CustomFileFormatTemplate(Templated):
     template = """
     (
-        {% if type is not none %}type = {{ type }}{% endif %}
-        {% if field_delimiter is not none %}field_delimiter = '{{ field_delimiter }}'{% endif %}
-        {% if null_if is not none %}null_if = {{ null_if }}{% endif %}
-        {% if compression is not none %}compression = {{ compression }}{% endif %}
+        {% for k, v in args.items() %}
+        {% when k %}{{ k }} = {{ v }}{% endwhen %}
+        {% endfor %}
     )
     """
     type: FileFormatType = None
-    field_delimiter: str = None
+    field_delimiter: Quoted[str] = None
     null_if: Tuple[str, ...] = None
     compression: FileFormatCompression = None
 
@@ -76,12 +94,12 @@ if __name__ == '__main__':
     rendered_copy = CopyTemplate(
         table='foo',
         s3_path='bar',
+        fields=[FieldMetadata(name='a', type='varchar'), FieldMetadata(name='b', type='integer')],
         file_format=CustomFileFormatTemplate(
             type=FileFormatType.CSV,
-            field_delimiter=',',
+            field_delimiter=Quoted(','),
             null_if=('null', 'NULL'),
             compression=FileFormatCompression.AUTO,
         )
-    )
-
+    ).rendered
     print(rendered_copy)

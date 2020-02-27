@@ -1,3 +1,4 @@
+import re
 import textwrap
 from enum import Enum
 
@@ -330,13 +331,33 @@ class Templated(Protocol):
 
     @property
     def context(self):
-        return {
+        args = {
             k: getattr(self, k).rendered if isinstance(getattr(self, k), Templated) else getattr(self, k)
             for k, v in self.__annotations__.items() if k != 'template'
         }
+        return dict(args={k: v for k, v in args.items() if v is not None}, **args)
+
+    @property
+    def environment(self):
+        env = jinja2.Environment(
+            loader=jinja2.loaders.BaseLoader,
+            trim_blocks=True,
+            lstrip_blocks=True,
+            keep_trailing_newline=True,
+        )
+        return env
+
+    def expand_template(self) -> str:
+        template = textwrap.dedent(self.template).strip()
+        replaced = re.sub(
+            r'( *){%\s*when\s+(.*)\s*%}(.*){%\s*endwhen\s*%}',
+            '{% if \\g<2> is not none %}\n\\g<1>\\g<3>\n\\g<1>{% endif %}',
+            template,
+        )
+        return re.sub(r'(\s*){%\s*when\s+(.*)\s*%}', '{% if \\g<2> is not none %}\n\\g<1>{{ \\g<2> }}\n\\g<1>{% endif %}', replaced)
 
     def render(self) -> str:
-        return jinja2.Template(textwrap.dedent(self.template).strip()).render(self.context)
+        return self.environment.from_string(self.expand_template()).render(self.context)
 
     @property
     def rendered(self) -> str:
