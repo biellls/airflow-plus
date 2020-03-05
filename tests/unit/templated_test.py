@@ -17,6 +17,42 @@ def test_simple_templated():
 
 
 @dataclass
+class MyTemplateWithProperty(Templated):
+    template = """
+    {{ x }} = {{ y }}
+    """
+    x: int
+
+    @property
+    def y(self) -> int:
+        return self.x + 2
+
+
+def test_simple_templated_with_property():
+    assert MyTemplateWithProperty(x=5).rendered == '5 = 7'
+
+
+@dataclass
+class MyTemplateWithFilter(Templated):
+    template = """
+    {{ x }} = {{ x | add_one }}
+    {{ x }} = {{ x | add_two }}
+    """
+    x: int
+
+    @staticmethod
+    def add_one(num: int) -> int:
+        return num + 1
+
+    def add_two(self, num: int) -> int:
+        return num + 2
+
+
+def test_simple_templated_with_filter():
+    assert MyTemplateWithFilter(x=5).rendered == '5 = 6\n5 = 7'
+
+
+@dataclass
 class MyTemplateWithWhen(Templated):
     template = """
     {% when x %}

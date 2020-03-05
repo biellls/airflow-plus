@@ -79,15 +79,21 @@ def mock_airflow_db() -> ContextManager[AirflowDb]:
     with tempfile.TemporaryDirectory() as temp_dir:
         test_db_path = os.path.join(temp_dir, 'airflow.db')
         sql_alchemy_conn = f'sqlite:///{test_db_path}'
-        with set_env(
-                AIRFLOW__CORE__SQL_ALCHEMY_CONN=sql_alchemy_conn,
-                AIRFLOW__CORE__FERNET_KEY=Fernet.generate_key().decode(),
-        ):
-            settings.configure_vars()
-            settings.configure_orm()
-            assert repr(settings.engine.url) == sql_alchemy_conn
+        with set_airflow_db(sql_alchemy_conn, Fernet.generate_key().decode()):
             initdb()
             yield AirflowDb(sql_alchemy_conn=sql_alchemy_conn)
+
+
+@contextlib.contextmanager
+def set_airflow_db(sql_alchemy_conn: str, fernet_key: str):
+    with set_env(
+            AIRFLOW__CORE__SQL_ALCHEMY_CONN=sql_alchemy_conn,
+            AIRFLOW__CORE__FERNET_KEY=fernet_key,
+    ):
+        settings.configure_vars()
+        settings.configure_orm()
+        assert repr(settings.engine.url) == sql_alchemy_conn
+        yield
     settings.configure_vars()
     settings.configure_orm()
 

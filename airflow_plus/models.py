@@ -1,3 +1,4 @@
+import inspect
 import re
 import textwrap
 from enum import Enum
@@ -331,22 +332,44 @@ class Component(Protocol):
 class Templated(Protocol):
     template: str
 
+    def get_properties(self) -> dict:
+        base_properties = [
+            x[0] for x in inspect.getmembers(Templated, lambda o: isinstance(o, property))
+        ]
+        return {
+            x[0]: getattr(self, x[0])
+            for x in inspect.getmembers(self.__class__, lambda o: isinstance(o, property))
+            if x[0] not in base_properties
+        }
+
+    def get_methods(self) -> dict:
+        base_methods = [x[0] for x in inspect.getmembers(Templated, inspect.isfunction)]
+        return {
+            x[0]: x[1]
+            for x in inspect.getmembers(self.__class__, inspect.isfunction)
+            if x[0] not in base_methods and not x[0].startswith('_')
+        }
+
     @property
     def context(self):
         args = {
             k: getattr(self, k).rendered if isinstance(getattr(self, k), Templated) else getattr(self, k)
             for k, v in self.__annotations__.items() if k != 'template'
         }
-        return dict(args={k: v for k, v in args.items() if v is not None}, **args)
+        return dict(args={k: v for k, v in args.items() if v is not None}, **args, **self.get_properties())
 
     @property
     def environment(self):
+        def _make_filter(method_name):
+            return lambda *args: getattr(self, method_name)(*args)
         env = jinja2.Environment(
             loader=jinja2.loaders.BaseLoader,
             trim_blocks=True,
             lstrip_blocks=True,
             keep_trailing_newline=True,
         )
+        for name in self.get_methods().keys():
+            env.filters[name] = _make_filter(name)
         return env
 
     def expand_template(self) -> str:
